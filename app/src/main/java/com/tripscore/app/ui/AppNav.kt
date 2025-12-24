@@ -18,10 +18,11 @@ fun AppNav(
     hasLocationPermission: Boolean,
     onRequestPermissions: () -> Unit,
     onStartRecording: () -> Unit,
-    onStopRecording: () -> Unit
+    onStopRecording: () -> Unit,
+    isServiceRunning: Boolean = false
 ) {
     val nav = rememberNavController()
-    var isRecording by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(isServiceRunning) }
 
     val service = TripRecorderService.getInstance()
     val currentTripStateFlow = service?.currentTripState
@@ -29,6 +30,13 @@ fun AppNav(
         currentTripStateFlow.collectAsState(initial = com.tripscore.app.data.CurrentTripState())
     } else {
         remember { mutableStateOf(com.tripscore.app.data.CurrentTripState()) }
+    }
+    
+    val liveLocationPointsFlow = service?.liveLocationPoints
+    val liveLocationPoints = if (liveLocationPointsFlow != null) {
+        liveLocationPointsFlow.collectAsState(initial = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<com.tripscore.app.service.TripRecorderService.LocationData>()) }
     }
 
     NavHost(navController = nav, startDestination = "home") {
@@ -47,7 +55,16 @@ fun AppNav(
                 onOpenTrips = { nav.navigate("trips") },
                 onOpenActiveTrip = { nav.navigate("activeTrip") },
                 isRecording = isRecording,
-                currentTripState = currentTripState.value
+                currentTripState = currentTripState.value,
+                liveLocationPoints = liveLocationPoints.value.map { point ->
+                    com.tripscore.app.ui.LiveLocationPoint(
+                        latitude = point.latitude,
+                        longitude = point.longitude,
+                        timestamp = point.timestamp,
+                        speed = point.speed,
+                        bearing = point.bearing
+                    )
+                }
             )
         }
         composable("activeTrip") {
@@ -80,3 +97,4 @@ fun AppNav(
         }
     }
 }
+

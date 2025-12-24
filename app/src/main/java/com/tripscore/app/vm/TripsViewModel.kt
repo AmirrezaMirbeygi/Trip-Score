@@ -2,9 +2,8 @@ package com.tripscore.app.vm
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.tripscore.app.data.AppDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class TripsViewModel(app: Application) : AndroidViewModel(app) {
@@ -12,7 +11,7 @@ class TripsViewModel(app: Application) : AndroidViewModel(app) {
     val trips = db.tripDao().observeTrips()
 
     fun deleteTrip(id: Long) {
-        CoroutineScope(Dispatchers.IO).launch {
+        viewModelScope.launch {
             db.tripDao().delete(id)
         }
     }

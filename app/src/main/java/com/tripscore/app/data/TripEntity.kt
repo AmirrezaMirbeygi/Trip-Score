@@ -16,16 +16,20 @@ data class TripEntity(
     val scoreStars: Int,
 
     val minorSpeeding: Int,
+    val midSpeeding: Int,
     val majorSpeeding: Int,
 
-    val moderateAccel: Int,
-    val aggressiveAccel: Int,
+    val minorAccel: Int,
+    val midAccel: Int,
+    val majorAccel: Int,
 
-    val hardBrakes: Int,
-    val panicBrakes: Int,
+    val minorBrakes: Int,
+    val midBrakes: Int,
+    val majorBrakes: Int,
 
-    val sharpTurns: Int,
-    val aggressiveTurns: Int,
+    val minorTurns: Int,
+    val midTurns: Int,
+    val majorTurns: Int,
 
     val handledSeconds: Double,
     val screenOnMovingSeconds: Double,

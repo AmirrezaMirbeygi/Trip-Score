@@ -171,13 +171,15 @@ fun ActiveTripScreen(
                             icon = Icons.Default.Speed,
                             label = "Speeding",
                             minor = currentTripState.minorSpeeding,
-                            major = currentTripState.majorSpeeding
+                            major = currentTripState.majorSpeeding,
+                            mid = currentTripState.midSpeeding
                         )
                         EventBadge(
                             icon = Icons.Default.Warning,
                             label = "Braking",
-                            minor = currentTripState.hardBrakes,
-                            major = currentTripState.panicBrakes
+                            minor = currentTripState.minorBrakes,
+                            major = currentTripState.majorBrakes,
+                            mid = currentTripState.midBrakes
                         )
                         EventBadge(
                             icon = Icons.Default.PhoneAndroid,
@@ -218,7 +220,7 @@ private fun InfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
 }
 
 @Composable
-private fun EventBadge(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, minor: Int, major: Int) {
+private fun EventBadge(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, minor: Int, major: Int, mid: Int = 0) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -230,7 +232,7 @@ private fun EventBadge(icon: androidx.compose.ui.graphics.vector.ImageVector, la
             tint = if (major > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "${minor + major}",
+            text = "${minor + mid + major}",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = if (major > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface

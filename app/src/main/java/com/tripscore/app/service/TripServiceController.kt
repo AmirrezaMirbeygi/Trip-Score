@@ -1,5 +1,6 @@
 package com.tripscore.app.service
 
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -17,5 +18,11 @@ object TripServiceController {
             action = TripRecorderService.ACTION_STOP
         }
         ctx.startService(i)
+    }
+
+    fun isRunning(ctx: Context): Boolean {
+        val activityManager = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return activityManager.getRunningServices(Integer.MAX_VALUE)
+            .any { it.service.className == TripRecorderService::class.java.name }
     }
 }

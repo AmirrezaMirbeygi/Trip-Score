@@ -27,7 +27,8 @@ fun HomeScreen(
     onOpenTrips: () -> Unit,
     onOpenActiveTrip: () -> Unit,
     isRecording: Boolean = false,
-    currentTripState: CurrentTripState = CurrentTripState()
+    currentTripState: CurrentTripState = CurrentTripState(),
+    liveLocationPoints: List<LiveLocationPoint> = emptyList()
 ) {
     Column(
         modifier = Modifier
@@ -112,8 +113,58 @@ fun HomeScreen(
             }
         }
 
-        // Trip Detected Card (replaces How it works when trip is active)
-        if (currentTripState.isActive) {
+        // Live Trip Map (replaces How it works when trip is active)
+        if (currentTripState.isActive && liveLocationPoints.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .clickable(onClick = onOpenActiveTrip),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error)
+                            )
+                            Text(
+                                text = "Trip in Progress",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    // Live Map
+                    LiveTripMapView(
+                        locationPoints = liveLocationPoints,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    )
+                }
+            }
+        } else if (currentTripState.isActive) {
+            // Trip Detected Card (when trip is active but no location points yet)
             TripDetectedCard(
                 tripState = currentTripState,
                 onClick = onOpenActiveTrip
@@ -342,12 +393,12 @@ private fun TripDetectedCard(
                 TripInfoItem(
                     icon = Icons.Default.Speed,
                     label = "Events",
-                    value = "${tripState.minorSpeeding + tripState.majorSpeeding + tripState.hardBrakes + tripState.panicBrakes}"
+                    value = "${tripState.minorSpeeding + tripState.midSpeeding + tripState.majorSpeeding + tripState.minorBrakes + tripState.midBrakes + tripState.majorBrakes}"
                 )
             }
 
             // Quick Event Summary
-            if (tripState.majorSpeeding > 0 || tripState.panicBrakes > 0 || tripState.handledSeconds > 0) {
+            if (tripState.majorSpeeding > 0 || tripState.majorBrakes > 0 || tripState.handledSeconds > 0) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -361,10 +412,10 @@ private fun TripDetectedCard(
                             isWarning = true
                         )
                     }
-                    if (tripState.panicBrakes > 0) {
+                    if (tripState.majorBrakes > 0) {
                         EventBadge(
                             icon = Icons.Default.Warning,
-                            count = tripState.panicBrakes,
+                            count = tripState.majorBrakes,
                             label = "Braking",
                             isWarning = true
                         )

@@ -165,14 +165,14 @@ private fun TripCard(trip: TripEntity, onClick: () -> Unit) {
                 MetricItem(
                     icon = Icons.Default.Speed,
                     label = "Speed",
-                    value = "${trip.minorSpeeding}/${trip.majorSpeeding}",
+                    value = "${trip.minorSpeeding}/${trip.midSpeeding}/${trip.majorSpeeding}",
                     color = if (trip.majorSpeeding > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 )
                 MetricItem(
                     icon = Icons.Default.Warning,
                     label = "Braking",
-                    value = "${trip.hardBrakes}/${trip.panicBrakes}",
-                    color = if (trip.panicBrakes > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    value = "${trip.minorBrakes}/${trip.midBrakes}/${trip.majorBrakes}",
+                    color = if (trip.majorBrakes > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 )
                 MetricItem(
                     icon = Icons.Default.PhoneAndroid,

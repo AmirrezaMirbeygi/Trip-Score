@@ -67,24 +67,26 @@ fun TripMapView(
         eventMarkers.forEach { event ->
             val position = LatLng(event.latitude, event.longitude)
             val color = when (event.eventType) {
-                "speeding_major", "brake_panic", "accel_aggressive", "turn_aggressive" ->
+                "speeding_major", "brake_major", "accel_major", "turn_major" ->
                     androidx.compose.ui.graphics.Color(0xFFF44336) // Red
-                "speeding_minor", "brake_hard", "accel_moderate", "turn_sharp" ->
+                "speeding_mid", "brake_mid", "accel_mid", "turn_mid" ->
+                    androidx.compose.ui.graphics.Color(0xFFFF5722) // Deep Orange
+                "speeding_minor", "brake_minor", "accel_minor", "turn_minor" ->
                     androidx.compose.ui.graphics.Color(0xFFFF9800) // Orange
                 else -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Blue
             }
 
             val icon = when (event.eventType) {
-                "speeding_minor", "speeding_major" -> "🚗"
-                "brake_hard", "brake_panic" -> "⚠️"
-                "accel_moderate", "accel_aggressive" -> "⚡"
-                "turn_sharp", "turn_aggressive" -> "↪️"
+                "speeding_minor", "speeding_mid", "speeding_major" -> "🚗"
+                "brake_minor", "brake_mid", "brake_major" -> "⚠️"
+                "accel_minor", "accel_mid", "accel_major" -> "⚡"
+                "turn_minor", "turn_mid", "turn_major" -> "↪️"
                 else -> "📍"
             }
 
             Marker(
                 state = MarkerState(position = position),
-                title = event.eventType.replace("_", " ").capitalize(),
+                title = event.eventType.replace("_", " ").replaceFirstChar { it.uppercaseChar() },
                 snippet = icon
             )
         }
