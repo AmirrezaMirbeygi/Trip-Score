@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Trip Score</string>
+    <string name="notif_channel_name">Trip recording</string>
+    <string name="notif_channel_desc">Foreground service for trip detection and scoring</string>
+</resources>
