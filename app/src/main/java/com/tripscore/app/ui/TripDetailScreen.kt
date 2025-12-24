@@ -203,6 +203,63 @@ fun TripDetailScreen(
                 }
             }
 
+            // Category Scores Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Category Scores",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    CategoryScoreRow(
+                        title = "Speed",
+                        icon = Icons.Default.Speed,
+                        score = calculateSpeedScore(t.minorSpeeding, t.majorSpeeding, t.distanceKm),
+                        minorCount = t.minorSpeeding,
+                        majorCount = t.majorSpeeding
+                    )
+
+                    Divider()
+
+                    CategoryScoreRow(
+                        title = "Braking",
+                        icon = Icons.Default.Warning,
+                        score = calculateBrakingScore(t.hardBrakes, t.panicBrakes, t.distanceKm),
+                        minorCount = t.hardBrakes,
+                        majorCount = t.panicBrakes
+                    )
+
+                    Divider()
+
+                    CategoryScoreRow(
+                        title = "Acceleration",
+                        icon = Icons.Default.TrendingUp,
+                        score = calculateAccelScore(t.moderateAccel, t.aggressiveAccel, t.distanceKm),
+                        minorCount = t.moderateAccel,
+                        majorCount = t.aggressiveAccel
+                    )
+
+                    Divider()
+
+                    CategoryScoreRow(
+                        title = "Cornering",
+                        icon = Icons.Default.RotateRight,
+                        score = calculateCorneringScore(t.sharpTurns, t.aggressiveTurns, t.distanceKm),
+                        minorCount = t.sharpTurns,
+                        majorCount = t.aggressiveTurns
+                    )
+                }
+            }
+
             // Driving Events Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -215,7 +272,7 @@ fun TripDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     Text(
-                        text = "Driving Events",
+                        text = "Event Details",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -449,6 +506,100 @@ private fun EventBadge(label: String, count: Int, color: Color) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun CategoryScoreRow(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    score: Double,
+    minorCount: Int,
+    majorCount: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (minorCount > 0 || majorCount > 0) {
+                    Text(
+                        text = "$minorCount minor, $majorCount major",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "No events",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "${score.toInt()}/100",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = getScoreColor(score)
+            )
+            LinearProgressIndicator(
+                progress = { (score.toFloat() / 100f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .width(80.dp)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = getScoreColor(score),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        }
+    }
+}
+
+// Score calculation functions (matching TripScorer logic)
+private fun calculateSpeedScore(minor: Int, major: Int, distanceKm: Double): Double {
+    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
+    val penalty = 1.0 * (minor / norm) + 3.0 * (major / norm)
+    return (100.0 - penalty).coerceIn(0.0, 100.0)
+}
+
+private fun calculateBrakingScore(hard: Int, panic: Int, distanceKm: Double): Double {
+    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
+    val penalty = 1.5 * (hard / norm) + 3.0 * (panic / norm)
+    return (100.0 - penalty).coerceIn(0.0, 100.0)
+}
+
+private fun calculateAccelScore(moderate: Int, aggressive: Int, distanceKm: Double): Double {
+    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
+    val penalty = 1.0 * (moderate / norm) + 2.5 * (aggressive / norm)
+    return (100.0 - penalty).coerceIn(0.0, 100.0)
+}
+
+private fun calculateCorneringScore(sharp: Int, aggressive: Int, distanceKm: Double): Double {
+    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
+    val penalty = 1.0 * (sharp / norm) + 2.5 * (aggressive / norm)
+    return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 
 @Composable

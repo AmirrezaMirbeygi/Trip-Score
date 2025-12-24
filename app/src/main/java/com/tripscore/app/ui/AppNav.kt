@@ -47,7 +47,7 @@ fun AppNav(
                 onOpenTrips = { nav.navigate("trips") },
                 onOpenActiveTrip = { nav.navigate("activeTrip") },
                 isRecording = isRecording,
-                hasActiveTrip = currentTripState.value.isActive
+                currentTripState = currentTripState.value
             )
         }
         composable("activeTrip") {

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tripscore.app.data.CurrentTripState
 
 @Composable
 fun HomeScreen(
@@ -26,7 +27,7 @@ fun HomeScreen(
     onOpenTrips: () -> Unit,
     onOpenActiveTrip: () -> Unit,
     isRecording: Boolean = false,
-    hasActiveTrip: Boolean = false
+    currentTripState: CurrentTripState = CurrentTripState()
 ) {
     Column(
         modifier = Modifier
@@ -111,92 +112,54 @@ fun HomeScreen(
             }
         }
 
-        // Info Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "How it works",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                
-                FeatureItem(
-                    icon = Icons.Default.AutoAwesome,
-                    text = "Automatic trip detection"
-                )
-                FeatureItem(
-                    icon = Icons.Default.Star,
-                    text = "0-5 star rating per trip"
-                )
-                FeatureItem(
-                    icon = Icons.Default.Speed,
-                    text = "Tracks speed, braking, acceleration & cornering"
-                )
-                FeatureItem(
-                    icon = Icons.Default.PhoneAndroid,
-                    text = "Monitors phone handling while driving"
-                )
-            }
-        }
-
-        // Active Trip Card
-        if (hasActiveTrip) {
+        // Trip Detected Card (replaces How it works when trip is active)
+        if (currentTripState.isActive) {
+            TripDetectedCard(
+                tripState = currentTripState,
+                onClick = onOpenActiveTrip
+            )
+        } else {
+            // Info Card (How it works)
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenActiveTrip() },
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = null,
-                        modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Active Trip",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Tap to view live trip details",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            text = "How it works",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    
+                    FeatureItem(
+                        icon = Icons.Default.AutoAwesome,
+                        text = "Automatic trip detection"
+                    )
+                    FeatureItem(
+                        icon = Icons.Default.Star,
+                        text = "0-5 star rating per trip"
+                    )
+                    FeatureItem(
+                        icon = Icons.Default.Speed,
+                        text = "Tracks speed, braking, acceleration & cornering"
+                    )
+                    FeatureItem(
+                        icon = Icons.Default.PhoneAndroid,
+                        text = "Monitors phone handling while driving"
                     )
                 }
             }
@@ -264,6 +227,218 @@ fun HomeScreen(
         }
     }
 }
+
+@Composable
+private fun TripDetectedCard(
+    tripState: CurrentTripState,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = getScoreColor(tripState.currentScore).copy(alpha = 0.1f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                    )
+                    Text(
+                        text = "Trip Detected",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Score Display
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Current Score",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(5) { index ->
+                            val stars = (tripState.currentScore / 20.0).toInt().coerceIn(0, 5)
+                            Icon(
+                                imageVector = if (index < stars) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (index < stars) getScoreColor(tripState.currentScore) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "${tripState.currentScore.toInt()}/100",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = getScoreColor(tripState.currentScore)
+                )
+            }
+
+            // Progress Bar
+            LinearProgressIndicator(
+                progress = { (tripState.currentScore.toFloat() / 100f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = getScoreColor(tripState.currentScore),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+
+            // Trip Info Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                TripInfoItem(
+                    icon = Icons.Default.Schedule,
+                    label = "Duration",
+                    value = "${tripState.durationMin.toInt()} min"
+                )
+                TripInfoItem(
+                    icon = Icons.Default.Straighten,
+                    label = "Distance",
+                    value = "${tripState.distanceKm.format1()} km"
+                )
+                TripInfoItem(
+                    icon = Icons.Default.Speed,
+                    label = "Events",
+                    value = "${tripState.minorSpeeding + tripState.majorSpeeding + tripState.hardBrakes + tripState.panicBrakes}"
+                )
+            }
+
+            // Quick Event Summary
+            if (tripState.majorSpeeding > 0 || tripState.panicBrakes > 0 || tripState.handledSeconds > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (tripState.majorSpeeding > 0) {
+                        EventBadge(
+                            icon = Icons.Default.Speed,
+                            count = tripState.majorSpeeding,
+                            label = "Speeding",
+                            isWarning = true
+                        )
+                    }
+                    if (tripState.panicBrakes > 0) {
+                        EventBadge(
+                            icon = Icons.Default.Warning,
+                            count = tripState.panicBrakes,
+                            label = "Braking",
+                            isWarning = true
+                        )
+                    }
+                    if (tripState.handledSeconds > 0) {
+                        EventBadge(
+                            icon = Icons.Default.PhoneAndroid,
+                            count = tripState.handledSeconds.toInt(),
+                            label = "Distraction",
+                            isWarning = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripInfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun EventBadge(icon: androidx.compose.ui.graphics.vector.ImageVector, count: Int, label: String, isWarning: Boolean) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = if (isWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "$count $label",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isWarning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun getScoreColor(score: Double): Color {
+    return when {
+        score >= 80 -> Color(0xFF4CAF50) // Green
+        score >= 60 -> Color(0xFFFFC107) // Amber
+        score >= 40 -> Color(0xFFFF9800) // Orange
+        else -> Color(0xFFF44336) // Red
+    }
+}
+
+private fun Double.format1(): String = "%,.1f".format(this)
 
 @Composable
 private fun FeatureItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
