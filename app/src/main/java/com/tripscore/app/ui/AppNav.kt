@@ -1,11 +1,15 @@
 package com.tripscore.app.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,17 +27,32 @@ fun AppNav(
 ) {
     val nav = rememberNavController()
     var isRecording by remember { mutableStateOf(isServiceRunning) }
+    val coroutineScope = rememberCoroutineScope()
 
-    val service = TripRecorderService.getInstance()
+    // Use a state to track service instance and trigger recomposition when it changes
+    var service by remember { mutableStateOf(TripRecorderService.getInstance()) }
+    
+    // Periodically check for service instance in case it wasn't ready initially
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(500)
+            val newService = TripRecorderService.getInstance()
+            if (newService != null && newService != service) {
+                service = newService
+            }
+        }
+    }
+    
+    // Collect StateFlow - this will automatically recompose when values change
     val currentTripStateFlow = service?.currentTripState
-    val currentTripState = if (currentTripStateFlow != null) {
+    val currentTripState by if (currentTripStateFlow != null) {
         currentTripStateFlow.collectAsState(initial = com.tripscore.app.data.CurrentTripState())
     } else {
         remember { mutableStateOf(com.tripscore.app.data.CurrentTripState()) }
     }
     
     val liveLocationPointsFlow = service?.liveLocationPoints
-    val liveLocationPoints = if (liveLocationPointsFlow != null) {
+    val liveLocationPoints by if (liveLocationPointsFlow != null) {
         liveLocationPointsFlow.collectAsState(initial = emptyList())
     } else {
         remember { mutableStateOf(emptyList<com.tripscore.app.service.TripRecorderService.LocationData>()) }
@@ -54,9 +73,31 @@ fun AppNav(
                 },
                 onOpenTrips = { nav.navigate("trips") },
                 onOpenActiveTrip = { nav.navigate("activeTrip") },
+                onStartTest = {
+                    isRecording = true
+                    service?.startTestTrip() ?: run {
+                        // If service not ready, start it first
+                        onStartRecording()
+                        coroutineScope.launch {
+                            delay(500)
+                            TripRecorderService.getInstance()?.startTestTrip()
+                        }
+                    }
+                },
+                onStartTestHardBrake = {
+                    isRecording = true
+                    service?.startTestTripHardBrake() ?: run {
+                        // If service not ready, start it first
+                        onStartRecording()
+                        coroutineScope.launch {
+                            delay(500)
+                            TripRecorderService.getInstance()?.startTestTripHardBrake()
+                        }
+                    }
+                },
                 isRecording = isRecording,
-                currentTripState = currentTripState.value,
-                liveLocationPoints = liveLocationPoints.value.map { point ->
+                currentTripState = currentTripState,
+                liveLocationPoints = liveLocationPoints.map { point ->
                     com.tripscore.app.ui.LiveLocationPoint(
                         latitude = point.latitude,
                         longitude = point.longitude,
@@ -70,7 +111,11 @@ fun AppNav(
         composable("activeTrip") {
             ActiveTripScreen(
                 onBack = { nav.popBackStack() },
-                currentTripState = currentTripState.value
+                currentTripState = currentTripState,
+                onEndTrip = {
+                    // Trip ended, navigate back
+                    nav.popBackStack()
+                }
             )
         }
         composable("trips") {

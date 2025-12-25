@@ -4,6 +4,18 @@ plugins {
     id("kotlin-kapt")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+// Load secrets from secrets.properties file
+val secretsPropertiesFile = rootProject.file("secrets.properties")
+val secretsProperties = Properties()
+if (secretsPropertiesFile.exists()) {
+    FileInputStream(secretsPropertiesFile).use { stream ->
+        secretsProperties.load(stream)
+    }
+}
+
 android {
     namespace = "com.tripscore.app"
     compileSdk = 35
@@ -16,6 +28,10 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Get API key from secrets.properties or use placeholder
+        val mapsApiKey = secretsProperties.getProperty("MAPS_API_KEY") ?: "YOUR_GOOGLE_MAPS_API_KEY"
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

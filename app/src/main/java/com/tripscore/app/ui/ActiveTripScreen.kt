@@ -6,8 +6,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -24,8 +26,18 @@ import java.util.*
 @Composable
 fun ActiveTripScreen(
     onBack: () -> Unit,
-    currentTripState: CurrentTripState
+    currentTripState: CurrentTripState,
+    onEndTrip: () -> Unit = {}
 ) {
+    // Automatically navigate back to home when trip ends
+    LaunchedEffect(currentTripState.isActive) {
+        if (!currentTripState.isActive) {
+            // Trip has ended, navigate back to home screen
+            onEndTrip()
+            onBack()
+        }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -93,12 +105,31 @@ fun ActiveTripScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = "${currentTripState.currentScore.toInt()}/100",
-                        style = MaterialTheme.typography.displayLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = getScoreColor(currentTripState.currentScore)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${currentTripState.currentScore.toInt()}/100",
+                            style = MaterialTheme.typography.displayLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = getScoreColor(currentTripState.currentScore)
+                        )
+                        // Stars display
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val stars = scoreToStars(currentTripState.currentScore)
+                            repeat(5) { index ->
+                                Icon(
+                                    imageVector = if (index < stars) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (index < stars) Color(0xFFFFD700) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                )
+                            }
+                        }
+                    }
                     LinearProgressIndicator(
                         progress = { (currentTripState.currentScore.toFloat() / 100f).coerceIn(0f, 1f) },
                         modifier = Modifier
@@ -190,6 +221,26 @@ fun ActiveTripScreen(
                     }
                 }
             }
+            
+            // End Trip Button
+            Button(
+                onClick = {
+                    TripRecorderService.getInstance()?.endTripManually()
+                    onEndTrip()
+                    onBack()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("End Trip", style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
@@ -256,4 +307,7 @@ private fun getScoreColor(score: Double): Color {
 }
 
 private fun Double.format1(): String = "%,.1f".format(this)
+
+private fun scoreToStars(score100: Double): Int =
+    kotlin.math.round(score100 / 20.0).toInt().coerceIn(0, 5)
 

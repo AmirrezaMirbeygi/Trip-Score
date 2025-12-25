@@ -661,8 +661,9 @@ private fun calculateSpeedScore(minor: Int, mid: Int, major: Int, distanceKm: Do
 
 private fun calculateBrakingScore(minor: Int, mid: Int, major: Int): Double {
     // Braking penalties: absolute values (not normalized)
-    // Minor = 25 points, Mid = 50 points, Major = 75 points
-    val penalty = 25.0 * minor + 50.0 * mid + 75.0 * major
+    // Reduced penalties: Minor = 15 points, Mid = 30 points, Major = 45 points
+    // This makes 3 minor + 1 mid = 75 penalty → 25/100 score (instead of 0/100)
+    val penalty = 15.0 * minor + 30.0 * mid + 45.0 * major
     return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 

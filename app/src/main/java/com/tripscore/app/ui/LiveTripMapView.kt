@@ -1,10 +1,13 @@
 package com.tripscore.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -24,6 +27,11 @@ fun LiveTripMapView(
     modifier: Modifier = Modifier
 ) {
     if (locationPoints.isEmpty()) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xFFE0E0E0))
+        )
         return
     }
 
@@ -51,45 +59,56 @@ fun LiveTripMapView(
         }
     }
 
-    GoogleMap(
-        modifier = modifier.fillMaxSize(),
-        cameraPositionState = cameraPositionState,
-        properties = MapProperties(
-            isMyLocationEnabled = false,
-            mapType = MapType.NORMAL
-        ),
-        uiSettings = MapUiSettings(
-            zoomControlsEnabled = true,
-            myLocationButtonEnabled = false
-        )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFE0E0E0)) // Light gray background while map loads
     ) {
-        // Draw route polyline
-        if (locationPoints.size > 1) {
-            val routePoints = locationPoints.map { LatLng(it.latitude, it.longitude) }
-            Polyline(
-                points = routePoints,
-                color = androidx.compose.ui.graphics.Color(0xFF2196F3), // Blue
-                width = 10f
-            )
-        }
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            properties = MapProperties(
+                isMyLocationEnabled = false,
+                mapType = MapType.NORMAL
+            ),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = true,
+                myLocationButtonEnabled = false,
+                compassEnabled = false,
+                mapToolbarEnabled = false
+            ),
+            onMapLoaded = {
+                // Map loaded successfully
+            }
+        ) {
+            // Draw route polyline
+            if (locationPoints.size > 1) {
+                val routePoints = locationPoints.map { LatLng(it.latitude, it.longitude) }
+                Polyline(
+                    points = routePoints,
+                    color = androidx.compose.ui.graphics.Color(0xFF2196F3), // Blue
+                    width = 10f
+                )
+            }
 
-        // Start marker (first point)
-        if (locationPoints.isNotEmpty()) {
-            val startPoint = LatLng(locationPoints.first().latitude, locationPoints.first().longitude)
-            Marker(
-                state = MarkerState(position = startPoint),
-                title = "Trip Start",
-                snippet = "Your trip started here"
-            )
-        }
+            // Start marker (first point)
+            if (locationPoints.isNotEmpty()) {
+                val startPoint = LatLng(locationPoints.first().latitude, locationPoints.first().longitude)
+                Marker(
+                    state = MarkerState(position = startPoint),
+                    title = "Trip Start",
+                    snippet = "Your trip started here"
+                )
+            }
 
-        // Current location marker (last point)
-        if (locationPoints.isNotEmpty()) {
-            Marker(
-                state = MarkerState(position = currentLocation),
-                title = "Current Location",
-                snippet = "You are here"
-            )
+            // Current location marker (last point)
+            if (locationPoints.isNotEmpty()) {
+                Marker(
+                    state = MarkerState(position = currentLocation),
+                    title = "Current Location",
+                    snippet = "You are here"
+                )
+            }
         }
     }
 }

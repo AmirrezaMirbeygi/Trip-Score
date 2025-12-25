@@ -22,6 +22,13 @@ class TripScorer {
     private var lastSpeed = 0.0
     private var lastBearingRad = 0.0
     private var lastTs = 0L
+    
+    // Low-pass filter state for noise reduction
+    private var filteredSpeed = 0.0
+    private var filteredBearingRad = 0.0
+    private var isFirstLocation = true  // Track if this is the first location reading
+    private val ALPHA_SPEED = 0.2  // Smoothing factor for speed (0.0-1.0, lower = more smoothing)
+    private val ALPHA_BEARING = 0.3  // Smoothing factor for bearing (0.0-1.0, lower = more smoothing)
 
     private var minorSpeeding = 0
     private var midSpeeding = 0
@@ -59,6 +66,9 @@ class TripScorer {
         lastSpeed = 0.0
         lastBearingRad = 0.0
         lastTs = 0L
+        filteredSpeed = 0.0
+        filteredBearingRad = 0.0
+        isFirstLocation = true
 
         minorSpeeding = 0
         midSpeeding = 0
@@ -89,8 +99,27 @@ class TripScorer {
         lastTs = now
         lastLoc = loc
 
-        val v = loc.speed.toDouble().coerceAtLeast(0.0)
-        val bearingRad = Math.toRadians(loc.bearing.toDouble())
+        val vRaw = loc.speed.toDouble().coerceAtLeast(0.0)
+        val bearingRadRaw = Math.toRadians(loc.bearing.toDouble())
+        
+        // Apply low-pass filter to reduce GPS noise
+        if (isFirstLocation) {
+            // First reading - initialize filter with raw values
+            filteredSpeed = vRaw
+            filteredBearingRad = bearingRadRaw
+            isFirstLocation = false
+        } else {
+            // Low-pass filter: filtered = alpha * new + (1 - alpha) * filtered_prev
+            // This smooths out rapid fluctuations while still responding to real changes
+            filteredSpeed = ALPHA_SPEED * vRaw + (1.0 - ALPHA_SPEED) * filteredSpeed
+            // For bearing, handle wrap-around (0-360 degrees) properly
+            val bearingDiff = wrapAngleRad(bearingRadRaw - filteredBearingRad)
+            filteredBearingRad = wrapAngleRad(filteredBearingRad + ALPHA_BEARING * bearingDiff)
+        }
+        
+        // Use filtered values for all calculations
+        val v = filteredSpeed
+        val bearingRad = filteredBearingRad
 
         // Speeding: minor = 10 km/h over, mid = 20 km/h over, major = 30 km/h over
         // 10 km/h = 2.78 m/s, 20 km/h = 5.56 m/s, 30 km/h = 8.33 m/s
@@ -102,8 +131,14 @@ class TripScorer {
         else if (v > minorThreshold) minorSpeeding += 1
 
         if (dtS >= MIN_DT_S) {
-            val aLong = (v - lastSpeed) / dtS
-            if (v > MIN_SPEED_FOR_EVENTS) {
+            // Only calculate acceleration/braking/cornering if we have valid previous values
+            // Skip the first update after trip start to avoid false events from initialization
+            // Check if this is the first location update (lastSpeed was 0 and we're now moving)
+            val isFirstUpdateAfterStart = lastSpeed == 0.0 && v > MIN_SPEED_FOR_EVENTS
+            
+            if (!isFirstUpdateAfterStart && v > MIN_SPEED_FOR_EVENTS) {
+                val aLong = (v - lastSpeed) / dtS
+                
                 // Acceleration: current thresholds become minor, add mid and major
                 // Minor: > 3.5 m/s² (current moderate)
                 // Mid: > 4.5 m/s² (current aggressive)
@@ -234,8 +269,9 @@ class TripScorer {
         val accPenalty = 1.0 * (minorAccel / norm) + 2.0 * (midAccel / norm) + 2.5 * (majorAccel / norm)
         
         // Braking penalties: absolute values (not normalized)
-        // Minor = 25 points, Mid = 50 points, Major = 75 points
-        val brkPenalty = 25.0 * minorBrakes + 50.0 * midBrakes + 75.0 * majorBrakes
+        // Reduced penalties: Minor = 15 points, Mid = 30 points, Major = 45 points
+        // This makes 3 minor + 1 mid = 75 penalty → 25/100 score (instead of 0/100)
+        val brkPenalty = 15.0 * minorBrakes + 30.0 * midBrakes + 45.0 * majorBrakes
         
         // Cornering: minor = 1.0x, mid = 2.0x, major = 2.5x
         val corPenalty = 1.0 * (minorTurns / norm) + 2.0 * (midTurns / norm) + 2.5 * (majorTurns / norm)
@@ -287,6 +323,10 @@ class TripScorer {
             majorTurns = majorTurns,
             handledSeconds = handledSeconds
         )
+    }
+    
+    fun getCurrentDistance(): Double {
+        return distanceM
     }
     
     data class EventCounts(

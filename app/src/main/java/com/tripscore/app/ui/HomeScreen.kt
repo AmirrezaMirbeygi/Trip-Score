@@ -26,6 +26,8 @@ fun HomeScreen(
     onStopRecording: () -> Unit,
     onOpenTrips: () -> Unit,
     onOpenActiveTrip: () -> Unit,
+    onStartTest: () -> Unit,
+    onStartTestHardBrake: () -> Unit,
     isRecording: Boolean = false,
     currentTripState: CurrentTripState = CurrentTripState(),
     liveLocationPoints: List<LiveLocationPoint> = emptyList()
@@ -219,8 +221,11 @@ fun HomeScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         // Action Buttons
+        val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = navigationBarHeight),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!hasLocationPermission) {
@@ -274,6 +279,35 @@ fun HomeScreen(
                 Icon(Icons.Default.History, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("View Trip History", style = MaterialTheme.typography.labelLarge)
+            }
+            
+            // Test buttons (only show when not recording)
+            if (!isRecording) {
+                OutlinedButton(
+                    onClick = onStartTest,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Icon(Icons.Default.Build, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Test Trip (Normal)", style = MaterialTheme.typography.labelLarge)
+                }
+                
+                OutlinedButton(
+                    onClick = onStartTestHardBrake,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Test Trip (Hard Brake)", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
