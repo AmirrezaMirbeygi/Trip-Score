@@ -17,11 +17,11 @@ if (secretsPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.tripscore.app"
+    namespace = "com.goofyapps.tripscore"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tripscore.app"
+        applicationId = "com.goofyapps.tripscore"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
