@@ -79,7 +79,9 @@ fun LiveTripMapView(
             ),
             onMapLoaded = {
                 // Map loaded successfully
-            }
+            },
+            onMapClick = { },
+            onPOIClick = { }
         ) {
             // Draw route polyline
             if (locationPoints.size > 1) {

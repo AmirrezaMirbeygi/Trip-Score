@@ -52,6 +52,18 @@ class TripScorer {
     private val TOUCH_WINDOW_MS = 5000L // 5 second window to count touches
     private val MIN_TOUCHES_FOR_DISTRACTION = 2 // Need at least 2 touches to count as distracted
 
+    // Event grouping: successive events of same type within 10 seconds count as 1 event
+    // This prevents counting multiple related events (e.g., multiple brakes in quick succession) as separate events
+    private val EVENT_GROUPING_WINDOW_MS = 10000L // 10 second window for event grouping
+    private var lastSpeedingTime = 0L
+    private var lastSpeedingSeverity = 0 // 0=none, 1=minor, 2=mid, 3=major
+    private var lastAccelTime = 0L
+    private var lastAccelSeverity = 0
+    private var lastBrakeTime = 0L
+    private var lastBrakeSeverity = 0
+    private var lastTurnTime = 0L
+    private var lastTurnSeverity = 0
+
     // v1: no posted speed limits, so use a baseline.
     private val DEFAULT_LIMIT_MPS = 25.0 // ~90 km/h (less conservative)
     private val MIN_SPEED_FOR_EVENTS = 4.0 // ~14.4 km/h
@@ -87,6 +99,16 @@ class TripScorer {
         screenOnMovingSeconds = 0.0
         nightSeconds = 0.0
         touchTimestamps.clear()
+        
+        // Reset event grouping state
+        lastSpeedingTime = 0L
+        lastSpeedingSeverity = 0
+        lastAccelTime = 0L
+        lastAccelSeverity = 0
+        lastBrakeTime = 0L
+        lastBrakeSeverity = 0
+        lastTurnTime = 0L
+        lastTurnSeverity = 0
     }
 
     fun onLocation(loc: Location) {
@@ -121,14 +143,41 @@ class TripScorer {
         val v = filteredSpeed
         val bearingRad = filteredBearingRad
 
-        // Speeding: minor = 10 km/h over, mid = 20 km/h over, major = 30 km/h over
-        // 10 km/h = 2.78 m/s, 20 km/h = 5.56 m/s, 30 km/h = 8.33 m/s
-        val minorThreshold = DEFAULT_LIMIT_MPS + 2.78  // ~100 km/h (10 km/h over)
-        val midThreshold = DEFAULT_LIMIT_MPS + 5.56    // ~110 km/h (20 km/h over)
-        val majorThreshold = DEFAULT_LIMIT_MPS + 8.33   // ~120 km/h (30 km/h over)
-        if (v > majorThreshold) majorSpeeding += 1
-        else if (v > midThreshold) midSpeeding += 1
-        else if (v > minorThreshold) minorSpeeding += 1
+        // Dynamic speeding thresholds based on current speed:
+        // 0-40 km/h: add 5 km/h to threshold
+        // 40-60 km/h: add 10 km/h to threshold
+        // 60-120 km/h: add 20 km/h to threshold
+        // Then minor = +10 km/h, mid = +20 km/h, major = +30 km/h over that threshold
+        val vKmh = v * 3.6 // Convert m/s to km/h
+        val baseThresholdKmh = when {
+            vKmh < 40.0 -> vKmh + 5.0
+            vKmh < 60.0 -> vKmh + 10.0
+            vKmh < 120.0 -> vKmh + 20.0
+            else -> vKmh + 20.0 // For speeds >= 120 km/h, still use +20
+        }
+        
+        // Convert thresholds back to m/s for comparison
+        // minor = +10 km/h, mid = +20 km/h, major = +30 km/h over base threshold
+        val minorThresholdMps = (baseThresholdKmh + 10.0) / 3.6
+        val midThresholdMps = (baseThresholdKmh + 20.0) / 3.6
+        val majorThresholdMps = (baseThresholdKmh + 30.0) / 3.6
+        
+        // Determine speeding severity (0=none, 1=minor, 2=mid, 3=major)
+        val speedingSeverity = when {
+            v > majorThresholdMps -> 3
+            v > midThresholdMps -> 2
+            v > minorThresholdMps -> 1
+            else -> 0
+        }
+        
+        if (speedingSeverity > 0) {
+            handleGroupedEvent(
+                now, speedingSeverity,
+                ::lastSpeedingTime, ::lastSpeedingSeverity,
+                { sev -> when (sev) { 3 -> majorSpeeding++; 2 -> midSpeeding++; 1 -> minorSpeeding++ } },
+                { sev -> when (sev) { 3 -> majorSpeeding--; 2 -> midSpeeding--; 1 -> minorSpeeding-- } }
+            )
+        }
 
         if (dtS >= MIN_DT_S) {
             // Only calculate acceleration/braking/cornering if we have valid previous values
@@ -143,20 +192,40 @@ class TripScorer {
                 // Minor: > 3.5 m/s² (current moderate)
                 // Mid: > 4.5 m/s² (current aggressive)
                 // Major: > 6.0 m/s² (new, more aggressive)
-                if (aLong > 6.0) majorAccel += 1
-                else if (aLong > 4.5) midAccel += 1
-                else if (aLong > 3.5) minorAccel += 1
+                val accelSeverity = when {
+                    aLong > 6.0 -> 3
+                    aLong > 4.5 -> 2
+                    aLong > 3.5 -> 1
+                    else -> 0
+                }
                 
-                // Braking: rename to minor/mid/major
-                // Minor: -2.0 to -3.0 (current mild)
-                // Mid: -3.0 to -4.5 (current hard)
-                // Major: < -4.5 (current panic)
-                if (aLong < -4.5) {
-                    majorBrakes += 1
-                } else if (aLong < -3.0) {
-                    midBrakes += 1
-                } else if (aLong < -2.0) {
-                    minorBrakes += 1
+                if (accelSeverity > 0) {
+                    handleGroupedEvent(
+                        now, accelSeverity,
+                        ::lastAccelTime, ::lastAccelSeverity,
+                        { sev -> when (sev) { 3 -> majorAccel++; 2 -> midAccel++; 1 -> minorAccel++ } },
+                        { sev -> when (sev) { 3 -> majorAccel--; 2 -> midAccel--; 1 -> minorAccel-- } }
+                    )
+                }
+                
+                // Braking: more sensitive thresholds to catch minor bad brakes
+                // Minor: < -1.5 m/s² (more sensitive than previous -2.0)
+                // Mid: < -2.5 m/s² (more sensitive than previous -3.0)
+                // Major: < -3.5 m/s² (more sensitive than previous -4.5)
+                val brakeSeverity = when {
+                    aLong < -3.5 -> 3
+                    aLong < -2.5 -> 2
+                    aLong < -1.5 -> 1
+                    else -> 0
+                }
+                
+                if (brakeSeverity > 0) {
+                    handleGroupedEvent(
+                        now, brakeSeverity,
+                        ::lastBrakeTime, ::lastBrakeSeverity,
+                        { sev -> when (sev) { 3 -> majorBrakes++; 2 -> midBrakes++; 1 -> minorBrakes++ } },
+                        { sev -> when (sev) { 3 -> majorBrakes--; 2 -> midBrakes--; 1 -> minorBrakes-- } }
+                    )
                 }
 
                 val dBear = wrapAngleRad(bearingRad - lastBearingRad)
@@ -166,9 +235,21 @@ class TripScorer {
                 // Minor: > 3.5 m/s² (current sharp)
                 // Mid: > 4.5 m/s² (current aggressive)
                 // Major: > 6.0 m/s² (new, more aggressive)
-                if (aLat > 6.0) majorTurns += 1
-                else if (aLat > 4.5) midTurns += 1
-                else if (aLat > 3.5) minorTurns += 1
+                val turnSeverity = when {
+                    aLat > 6.0 -> 3
+                    aLat > 4.5 -> 2
+                    aLat > 3.5 -> 1
+                    else -> 0
+                }
+                
+                if (turnSeverity > 0) {
+                    handleGroupedEvent(
+                        now, turnSeverity,
+                        ::lastTurnTime, ::lastTurnSeverity,
+                        { sev -> when (sev) { 3 -> majorTurns++; 2 -> midTurns++; 1 -> minorTurns++ } },
+                        { sev -> when (sev) { 3 -> majorTurns--; 2 -> midTurns--; 1 -> minorTurns-- } }
+                    )
+                }
             }
             lastSpeed = v
             lastBearingRad = bearingRad
@@ -304,6 +385,74 @@ class TripScorer {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMs }
         val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
         return (h >= 23) || (h < 5)
+    }
+    
+    /**
+     * Handles event grouping: successive events of the same type within 5 seconds count as 1 event.
+     * The event is categorized based on the worst severity in the group.
+     * 
+     * @param now Current timestamp in milliseconds
+     * @param newSeverity Severity of the new event (1=minor, 2=mid, 3=major)
+     * @param lastTimeRef Reference to the last event timestamp for this event type
+     * @param lastSeverityRef Reference to the current severity level for the active group
+     * @param incrementCounter Callback to increment the appropriate counter
+     * @param decrementCounter Callback to decrement the appropriate counter
+     */
+    private fun handleGroupedEvent(
+        now: Long,
+        newSeverity: Int,
+        lastTimeRef: () -> Long,
+        lastSeverityRef: () -> Int,
+        incrementCounter: (Int) -> Unit,
+        decrementCounter: (Int) -> Unit
+    ) {
+        val lastTime = lastTimeRef()
+        val lastSeverity = lastSeverityRef()
+        
+        if (lastTime == 0L || (now - lastTime) > EVENT_GROUPING_WINDOW_MS) {
+            // New event group: increment counter and start tracking
+            incrementCounter(newSeverity)
+            updateEventState(lastTimeRef, lastSeverityRef, now, newSeverity)
+        } else {
+            // Within grouping window: upgrade severity if worse
+            if (newSeverity > lastSeverity) {
+                // Decrement old severity, increment new severity
+                decrementCounter(lastSeverity)
+                incrementCounter(newSeverity)
+                updateEventState(lastTimeRef, lastSeverityRef, now, newSeverity)
+            } else {
+                // Same or lower severity: just update timestamp to extend the window
+                updateEventState(lastTimeRef, lastSeverityRef, now, lastSeverity)
+            }
+        }
+    }
+    
+    private fun updateEventState(
+        lastTimeRef: () -> Long,
+        lastSeverityRef: () -> Int,
+        newTime: Long,
+        newSeverity: Int
+    ) {
+        // Since we can't directly modify the references, we need to use a different approach
+        // We'll use a helper function that works with the actual properties
+        when (lastTimeRef) {
+            ::lastSpeedingTime -> {
+                lastSpeedingTime = newTime
+                lastSpeedingSeverity = newSeverity
+            }
+            ::lastAccelTime -> {
+                lastAccelTime = newTime
+                lastAccelSeverity = newSeverity
+            }
+            ::lastBrakeTime -> {
+                lastBrakeTime = newTime
+                lastBrakeSeverity = newSeverity
+            }
+            ::lastTurnTime -> {
+                lastTurnTime = newTime
+                lastTurnSeverity = newSeverity
+            }
+        }
     }
     
     // Expose current event counts for real-time tracking
