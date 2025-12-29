@@ -611,6 +611,11 @@ class TripRecorderService : Service() {
             }
             ACTION_STOP -> {
                 setExplicitlyStopped(this, true)
+                // If there's an active trip, end it first before stopping recording
+                if (currentTripStartMs > 0) {
+                    endTripManually()
+                }
+                // Then stop the service
                 if (isTestMode) {
                     stopTestMode()
                 } else {

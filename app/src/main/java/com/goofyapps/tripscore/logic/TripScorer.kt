@@ -231,14 +231,14 @@ class TripScorer {
                 val dBear = wrapAngleRad(bearingRad - lastBearingRad)
                 val yawRate = dBear / dtS
                 val aLat = abs(v * yawRate)
-                // Cornering: current thresholds become minor, add mid and major
-                // Minor: > 3.5 m/s² (current sharp)
-                // Mid: > 4.5 m/s² (current aggressive)
-                // Major: > 6.0 m/s² (new, more aggressive)
+                // Cornering: more sensitive thresholds to catch more cornering events
+                // Minor: > 2.5 m/s² (more sensitive than previous 3.5)
+                // Mid: > 3.5 m/s² (more sensitive than previous 4.5)
+                // Major: > 5.0 m/s² (more sensitive than previous 6.0)
                 val turnSeverity = when {
-                    aLat > 6.0 -> 3
-                    aLat > 4.5 -> 2
-                    aLat > 3.5 -> 1
+                    aLat > 5.0 -> 3
+                    aLat > 3.5 -> 2
+                    aLat > 2.5 -> 1
                     else -> 0
                 }
                 
