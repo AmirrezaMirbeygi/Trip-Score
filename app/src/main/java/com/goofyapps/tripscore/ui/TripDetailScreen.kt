@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -629,53 +630,43 @@ private fun CategoryScoreRow(
             }
         }
         
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        // Show stars instead of score number
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "${score.toInt()}/100",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = getScoreColor(score)
-            )
-            LinearProgressIndicator(
-                progress = { (score.toFloat() / 100f).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .width(80.dp)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = getScoreColor(score),
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            val stars = scoreToStars(score)
+            repeat(5) { index ->
+                Icon(
+                    imageVector = if (index < stars) Icons.Default.Star else Icons.Outlined.StarBorder,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (index < stars) Color(0xFFFFD700) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                )
+            }
         }
     }
 }
 
 // Score calculation functions (matching TripScorer logic)
+// All event penalties: Minor = 10 points, Mid = 25 points, Major = 45 points
 private fun calculateSpeedScore(minor: Int, mid: Int, major: Int, distanceKm: Double): Double {
-    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
-    val penalty = 1.0 * (minor / norm) + 2.0 * (mid / norm) + 3.0 * (major / norm)
+    val penalty = 10.0 * minor + 25.0 * mid + 45.0 * major
     return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 
 private fun calculateBrakingScore(minor: Int, mid: Int, major: Int): Double {
-    // Braking penalties: absolute values (not normalized)
-    // Reduced penalties: Minor = 15 points, Mid = 30 points, Major = 45 points
-    // This makes 3 minor + 1 mid = 75 penalty → 25/100 score (instead of 0/100)
-    val penalty = 15.0 * minor + 30.0 * mid + 45.0 * major
+    val penalty = 10.0 * minor + 25.0 * mid + 45.0 * major
     return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 
 private fun calculateAccelScore(minor: Int, mid: Int, major: Int, distanceKm: Double): Double {
-    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
-    val penalty = 1.0 * (minor / norm) + 2.0 * (mid / norm) + 2.5 * (major / norm)
+    val penalty = 10.0 * minor + 25.0 * mid + 45.0 * major
     return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 
 private fun calculateCorneringScore(minor: Int, mid: Int, major: Int, distanceKm: Double): Double {
-    val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
-    val penalty = 1.0 * (minor / norm) + 2.0 * (mid / norm) + 2.5 * (major / norm)
+    val penalty = 10.0 * minor + 25.0 * mid + 45.0 * major
     return (100.0 - penalty).coerceIn(0.0, 100.0)
 }
 
@@ -706,3 +697,6 @@ private fun formatDate(epochMs: Long): String {
     val sdf = SimpleDateFormat("MMM dd, yyyy 'at' HH:mm", Locale.getDefault())
     return sdf.format(Date(epochMs))
 }
+
+private fun scoreToStars(score100: Double): Int =
+    kotlin.math.round(score100 / 20.0).toInt().coerceIn(0, 5)

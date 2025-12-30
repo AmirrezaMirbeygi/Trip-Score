@@ -4,6 +4,7 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.location.Location
 import android.os.PowerManager
+import android.util.Log
 import com.goofyapps.tripscore.data.RouteEntity
 import com.goofyapps.tripscore.data.TripEntity
 import kotlin.math.abs
@@ -21,7 +22,13 @@ class TripScorer {
     private var lastLoc: Location? = null
     private var lastSpeed = 0.0
     private var lastBearingRad = 0.0
+    private var lastBearingRadRaw = 0.0  // Raw bearing for cornering detection (unfiltered)
     private var lastTs = 0L
+    
+    // Diagnostic: track maximum cornering acceleration
+    private var maxCorneringAccel = 0.0
+    private var maxCorneringSpeed = 0.0
+    private var maxCorneringYawRate = 0.0
     
     // Low-pass filter state for noise reduction
     private var filteredSpeed = 0.0
@@ -55,6 +62,7 @@ class TripScorer {
     // Event grouping: successive events of same type within 10 seconds count as 1 event
     // This prevents counting multiple related events (e.g., multiple brakes in quick succession) as separate events
     private val EVENT_GROUPING_WINDOW_MS = 10000L // 10 second window for event grouping
+    private val EVENT_GROUPING_SEVERITY_RESET_MS = 3000L // 3 seconds to allow lower severity events to start new group
     private var lastSpeedingTime = 0L
     private var lastSpeedingSeverity = 0 // 0=none, 1=minor, 2=mid, 3=major
     private var lastAccelTime = 0L
@@ -64,8 +72,6 @@ class TripScorer {
     private var lastTurnTime = 0L
     private var lastTurnSeverity = 0
 
-    // v1: no posted speed limits, so use a baseline.
-    private val DEFAULT_LIMIT_MPS = 25.0 // ~90 km/h (less conservative)
     private val MIN_SPEED_FOR_EVENTS = 4.0 // ~14.4 km/h
     private val MIN_DT_S = 0.4
 
@@ -77,10 +83,14 @@ class TripScorer {
         lastLoc = null
         lastSpeed = 0.0
         lastBearingRad = 0.0
+        lastBearingRadRaw = 0.0
         lastTs = 0L
         filteredSpeed = 0.0
         filteredBearingRad = 0.0
         isFirstLocation = true
+        maxCorneringAccel = 0.0
+        maxCorneringSpeed = 0.0
+        maxCorneringYawRate = 0.0
 
         minorSpeeding = 0
         midSpeeding = 0
@@ -143,30 +153,18 @@ class TripScorer {
         val v = filteredSpeed
         val bearingRad = filteredBearingRad
 
-        // Dynamic speeding thresholds based on current speed:
-        // 0-40 km/h: add 5 km/h to threshold
-        // 40-60 km/h: add 10 km/h to threshold
-        // 60-120 km/h: add 20 km/h to threshold
-        // Then minor = +10 km/h, mid = +20 km/h, major = +30 km/h over that threshold
+        // Fixed speeding thresholds (temporarily set to 200 km/h to disable - will implement speed limit detection later)
+        // Minor: > 200 km/h, Mid: > 200 km/h, Major: > 200 km/h
         val vKmh = v * 3.6 // Convert m/s to km/h
-        val baseThresholdKmh = when {
-            vKmh < 40.0 -> vKmh + 5.0
-            vKmh < 60.0 -> vKmh + 10.0
-            vKmh < 120.0 -> vKmh + 20.0
-            else -> vKmh + 20.0 // For speeds >= 120 km/h, still use +20
-        }
-        
-        // Convert thresholds back to m/s for comparison
-        // minor = +10 km/h, mid = +20 km/h, major = +30 km/h over base threshold
-        val minorThresholdMps = (baseThresholdKmh + 10.0) / 3.6
-        val midThresholdMps = (baseThresholdKmh + 20.0) / 3.6
-        val majorThresholdMps = (baseThresholdKmh + 30.0) / 3.6
+        val minorThresholdKmh = 200.0  // TODO: Replace with actual speed limit detection
+        val midThresholdKmh = 200.0    // TODO: Replace with actual speed limit detection
+        val majorThresholdKmh = 200.0  // TODO: Replace with actual speed limit detection
         
         // Determine speeding severity (0=none, 1=minor, 2=mid, 3=major)
         val speedingSeverity = when {
-            v > majorThresholdMps -> 3
-            v > midThresholdMps -> 2
-            v > minorThresholdMps -> 1
+            vKmh > majorThresholdKmh -> 3
+            vKmh > midThresholdKmh -> 2
+            vKmh > minorThresholdKmh -> 1
             else -> 0
         }
         
@@ -188,14 +186,14 @@ class TripScorer {
             if (!isFirstUpdateAfterStart && v > MIN_SPEED_FOR_EVENTS) {
                 val aLong = (v - lastSpeed) / dtS
                 
-                // Acceleration: current thresholds become minor, add mid and major
-                // Minor: > 3.5 m/s² (current moderate)
-                // Mid: > 4.5 m/s² (current aggressive)
-                // Major: > 6.0 m/s² (new, more aggressive)
+                // Acceleration thresholds (more sensitive to catch moderate acceleration)
+                // Minor: > 2.5 m/s² (moderate acceleration)
+                // Mid: > 3.5 m/s² (aggressive acceleration)
+                // Major: > 5.0 m/s² (very aggressive acceleration)
                 val accelSeverity = when {
-                    aLong > 6.0 -> 3
-                    aLong > 4.5 -> 2
-                    aLong > 3.5 -> 1
+                    aLong > 5.0 -> 3
+                    aLong > 3.5 -> 2
+                    aLong > 2.5 -> 1
                     else -> 0
                 }
                 
@@ -228,31 +226,46 @@ class TripScorer {
                     )
                 }
 
-                val dBear = wrapAngleRad(bearingRad - lastBearingRad)
+                // Use raw bearing for cornering detection to capture actual direction changes
+                // (filtered bearing smooths out the cornering signal too much)
+                val dBear = wrapAngleRad(bearingRadRaw - lastBearingRadRaw)
                 val yawRate = dBear / dtS
                 val aLat = abs(v * yawRate)
-                // Cornering: more sensitive thresholds to catch more cornering events
-                // Minor: > 2.5 m/s² (more sensitive than previous 3.5)
-                // Mid: > 3.5 m/s² (more sensitive than previous 4.5)
-                // Major: > 5.0 m/s² (more sensitive than previous 6.0)
+                
+                // Diagnostic: track maximum cornering values
+                if (aLat > maxCorneringAccel) {
+                    maxCorneringAccel = aLat
+                    maxCorneringSpeed = v
+                    maxCorneringYawRate = yawRate
+                    // Log.d("TripScorer", "Max cornering updated: aLat=${String.format("%.3f", aLat)} m/s², speed=${String.format("%.2f", v * 3.6)} km/h, yawRate=${String.format("%.4f", yawRate)} rad/s, dBear=${String.format("%.4f", dBear)} rad, dtS=${String.format("%.2f", dtS)} s")
+                }
+                
+                // Cornering thresholds: 200m radius at 45 km/h = 0.781 m/s² (minor)
+                // 200m radius at 60 km/h = 1.389 m/s² (mid)
+                // Minor: > 0.7 m/s² (catches 200m radius at 45 km/h = 0.781 m/s²)
+                // Mid: > 1.3 m/s² (catches 200m radius at 60 km/h = 1.389 m/s²)
+                // Major: > 3.0 m/s²
                 val turnSeverity = when {
-                    aLat > 5.0 -> 3
-                    aLat > 3.5 -> 2
-                    aLat > 2.5 -> 1
+                    aLat > 3.0 -> 3
+                    aLat > 1.3 -> 2
+                    aLat > 0.7 -> 1
                     else -> 0
                 }
                 
                 if (turnSeverity > 0) {
+                    // Log.d("TripScorer", "Cornering detected: aLat=${String.format("%.3f", aLat)} m/s², severity=$turnSeverity (0=none, 1=minor, 2=mid, 3=major), lastTurnTime=${lastTurnTime}, timeSinceLast=${if (lastTurnTime > 0) (now - lastTurnTime) else -1}ms")
                     handleGroupedEvent(
                         now, turnSeverity,
                         ::lastTurnTime, ::lastTurnSeverity,
                         { sev -> when (sev) { 3 -> majorTurns++; 2 -> midTurns++; 1 -> minorTurns++ } },
                         { sev -> when (sev) { 3 -> majorTurns--; 2 -> midTurns--; 1 -> minorTurns-- } }
                     )
+                    // Log.d("TripScorer", "After grouping: minor=$minorTurns, mid=$midTurns, major=$majorTurns")
                 }
             }
             lastSpeed = v
             lastBearingRad = bearingRad
+            lastBearingRadRaw = bearingRadRaw  // Store raw bearing for next cornering calculation
         }
 
         if (isNight(loc.time) && dtS > 0) nightSeconds += dtS
@@ -297,8 +310,22 @@ class TripScorer {
         val durationMin = max(0.0, (endEpochMs - tripStartMs) / 60000.0)
         val distanceKm = distanceM / 1000.0
         val valid = durationMin >= 2.0 && distanceKm >= 0.8
+        
+        // DIAGNOSTIC: Log scorer state
+        android.util.Log.d("TripScorer", "=== FINISHING TRIP ===")
+        android.util.Log.d("TripScorer", "Trip start time: $tripStartMs")
+        android.util.Log.d("TripScorer", "Trip end time: $endEpochMs")
+        android.util.Log.d("TripScorer", "Duration: $durationMin minutes")
+        android.util.Log.d("TripScorer", "Distance: $distanceKm km")
+        android.util.Log.d("TripScorer", "Valid: $valid (min 2min, 0.8km)")
+        android.util.Log.d("TripScorer", "Events - Speeding: minor=$minorSpeeding, mid=$midSpeeding, major=$majorSpeeding")
+        android.util.Log.d("TripScorer", "Events - Braking: minor=$minorBrakes, mid=$midBrakes, major=$majorBrakes")
+        android.util.Log.d("TripScorer", "Events - Acceleration: minor=$minorAccel, mid=$midAccel, major=$majorAccel")
+        android.util.Log.d("TripScorer", "Events - Cornering: minor=$minorTurns, mid=$midTurns, major=$majorTurns")
+        android.util.Log.d("TripScorer", "DIAGNOSTIC - Max cornering acceleration: ${String.format("%.3f", maxCorneringAccel)} m/s² (at speed ${String.format("%.2f", maxCorneringSpeed * 3.6)} km/h, yawRate ${String.format("%.4f", maxCorneringYawRate)} rad/s)")
 
         val score100 = if (!valid) 0.0 else computeScore100(durationMin, distanceKm)
+        android.util.Log.d("TripScorer", "Computed score: $score100/100")
         val scoreStars = scoreToStars(score100)
 
         val trip = TripEntity(
@@ -341,21 +368,12 @@ class TripScorer {
     }
 
     private fun computeScore100(durationMin: Double, distanceKm: Double): Double {
-        val norm = (distanceKm / 10.0).coerceAtLeast(0.3)
-
-        // Speed: minor = 1.0x, mid = 2.0x, major = 3.0x
-        val spdPenalty = 1.0 * (minorSpeeding / norm) + 2.0 * (midSpeeding / norm) + 3.0 * (majorSpeeding / norm)
-        
-        // Acceleration: minor = 1.0x, mid = 2.0x, major = 2.5x
-        val accPenalty = 1.0 * (minorAccel / norm) + 2.0 * (midAccel / norm) + 2.5 * (majorAccel / norm)
-        
-        // Braking penalties: absolute values (not normalized)
-        // Reduced penalties: Minor = 15 points, Mid = 30 points, Major = 45 points
-        // This makes 3 minor + 1 mid = 75 penalty → 25/100 score (instead of 0/100)
-        val brkPenalty = 15.0 * minorBrakes + 30.0 * midBrakes + 45.0 * majorBrakes
-        
-        // Cornering: minor = 1.0x, mid = 2.0x, major = 2.5x
-        val corPenalty = 1.0 * (minorTurns / norm) + 2.0 * (midTurns / norm) + 2.5 * (majorTurns / norm)
+        // All event penalties: absolute values (not normalized)
+        // Minor = 10 points, Mid = 25 points, Major = 45 points
+        val spdPenalty = 10.0 * minorSpeeding + 25.0 * midSpeeding + 45.0 * majorSpeeding
+        val accPenalty = 10.0 * minorAccel + 25.0 * midAccel + 45.0 * majorAccel
+        val brkPenalty = 10.0 * minorBrakes + 25.0 * midBrakes + 45.0 * majorBrakes
+        val corPenalty = 10.0 * minorTurns + 25.0 * midTurns + 45.0 * majorTurns
 
         val durPenalty = max(0.0, (durationMin - 90.0) / 30.0) * 1.0
 
@@ -414,14 +432,19 @@ class TripScorer {
             incrementCounter(newSeverity)
             updateEventState(lastTimeRef, lastSeverityRef, now, newSeverity)
         } else {
-            // Within grouping window: upgrade severity if worse
+            // Within grouping window
             if (newSeverity > lastSeverity) {
-                // Decrement old severity, increment new severity
+                // Upgrade severity if worse: decrement old severity, increment new severity
                 decrementCounter(lastSeverity)
                 incrementCounter(newSeverity)
                 updateEventState(lastTimeRef, lastSeverityRef, now, newSeverity)
+            } else if (newSeverity < lastSeverity && (now - lastTime) > EVENT_GROUPING_SEVERITY_RESET_MS) {
+                // Lower severity event after higher severity: if enough time has passed (3s), start new group
+                // This allows minor events after major events to be counted separately
+                incrementCounter(newSeverity)
+                updateEventState(lastTimeRef, lastSeverityRef, now, newSeverity)
             } else {
-                // Same or lower severity: just update timestamp to extend the window
+                // Same severity, or lower severity but too soon: just update timestamp to extend the window
                 updateEventState(lastTimeRef, lastSeverityRef, now, lastSeverity)
             }
         }

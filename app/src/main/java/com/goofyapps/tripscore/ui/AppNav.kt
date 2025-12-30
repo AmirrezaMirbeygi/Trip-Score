@@ -95,6 +95,17 @@ fun AppNav(
                         }
                     }
                 },
+                onStartTestCornering = {
+                    isRecording = true
+                    service?.startTestTripCornering() ?: run {
+                        // If service not ready, start it first
+                        onStartRecording()
+                        coroutineScope.launch {
+                            delay(500)
+                            TripRecorderService.getInstance()?.startTestTripCornering()
+                        }
+                    }
+                },
                 isRecording = isRecording,
                 currentTripState = currentTripState,
                 liveLocationPoints = liveLocationPoints.map { point ->

@@ -2,8 +2,10 @@ package com.goofyapps.tripscore.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.StarBorder
@@ -89,6 +91,7 @@ fun ActiveTripScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -112,29 +115,24 @@ fun ActiveTripScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        text = "${currentTripState.currentScore.toInt()}/100",
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = getScoreColor(currentTripState.currentScore)
+                    )
+                    // Stars display below the score
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = "${currentTripState.currentScore.toInt()}/100",
-                            style = MaterialTheme.typography.displayLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = getScoreColor(currentTripState.currentScore)
-                        )
-                        // Stars display
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            val stars = scoreToStars(currentTripState.currentScore)
-                            repeat(5) { index ->
-                                Icon(
-                                    imageVector = if (index < stars) Icons.Default.Star else Icons.Default.StarBorder,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = if (index < stars) Color(0xFFFFD700) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                )
-                            }
+                        val stars = scoreToStars(currentTripState.currentScore)
+                        repeat(5) { index ->
+                            Icon(
+                                imageVector = if (index < stars) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = if (index < stars) Color(0xFFFFD700) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
                         }
                     }
                     LinearProgressIndicator(
@@ -201,30 +199,54 @@ fun ActiveTripScreen(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        EventBadge(
-                            icon = Icons.Default.Speed,
-                            label = "Speeding",
-                            minor = currentTripState.minorSpeeding,
-                            major = currentTripState.majorSpeeding,
-                            mid = currentTripState.midSpeeding
-                        )
-                        EventBadge(
-                            icon = Icons.Default.Warning,
-                            label = "Braking",
-                            minor = currentTripState.minorBrakes,
-                            major = currentTripState.majorBrakes,
-                            mid = currentTripState.midBrakes
-                        )
-                        EventBadge(
-                            icon = Icons.Default.PhoneAndroid,
-                            label = "Distraction",
-                            minor = currentTripState.handledSeconds.toInt(),
-                            major = 0
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            EventBadge(
+                                icon = Icons.Default.Speed,
+                                label = "Speeding",
+                                minor = currentTripState.minorSpeeding,
+                                major = currentTripState.majorSpeeding,
+                                mid = currentTripState.midSpeeding
+                            )
+                            EventBadge(
+                                icon = Icons.Default.Warning,
+                                label = "Braking",
+                                minor = currentTripState.minorBrakes,
+                                major = currentTripState.majorBrakes,
+                                mid = currentTripState.midBrakes
+                            )
+                            EventBadge(
+                                icon = Icons.Default.PhoneAndroid,
+                                label = "Distraction",
+                                minor = currentTripState.handledSeconds.toInt(),
+                                major = 0
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            EventBadge(
+                                icon = Icons.Default.TrendingUp,
+                                label = "Acceleration",
+                                minor = currentTripState.minorAccel,
+                                major = currentTripState.majorAccel,
+                                mid = currentTripState.midAccel
+                            )
+                            EventBadge(
+                                icon = Icons.Default.TurnSharpRight,
+                                label = "Cornering",
+                                minor = currentTripState.minorTurns,
+                                major = currentTripState.majorTurns,
+                                mid = currentTripState.midTurns
+                            )
+                        }
                     }
                 }
             }

@@ -34,6 +34,7 @@ fun HomeScreen(
     onOpenActiveTrip: () -> Unit,
     onStartTest: () -> Unit,
     onStartTestHardBrake: () -> Unit,
+    onStartTestCornering: () -> Unit,
     isRecording: Boolean = false,
     currentTripState: CurrentTripState = CurrentTripState(),
     liveLocationPoints: List<LiveLocationPoint> = emptyList()
@@ -132,6 +133,20 @@ fun HomeScreen(
                             contentDescription = "Test Hard Brake",
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            onStartTestCornering()
+                            showTestButtons = false
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TurnSharpRight,
+                            contentDescription = "Test Cornering",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
                         )
                     }
                 }
